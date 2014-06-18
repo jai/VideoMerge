@@ -9,6 +9,8 @@
 import UIKit
 import AssetsLibrary
 import QuartzCore
+import AVFoundation
+import CoreMedia
 
 class Video: Equatable {
     var assetURL: NSURL?
@@ -47,17 +49,28 @@ class ViewController: UIViewController, UICollectionViewDataSource, UICollection
         self.navigationItem.rightBarButtonItem = UIBarButtonItem(title: NSLocalizedString("Merge",comment:"Merge button"), style: UIBarButtonItemStyle.Plain, target: self, action: "mergeButtonTapped")
     }
     
+    func setupCollectionView() {
+        var layout = collectionView.collectionViewLayout as UICollectionViewFlowLayout
+        layout.itemSize = CGSize(width: 100, height: 100)
+        collectionView.registerClass(VideoCollectionViewCell.self, forCellWithReuseIdentifier: cellIdentifier)
+        collectionView.layer.borderWidth = 5.0
+        collectionView.alwaysBounceVertical = true
+        collectionView.bounces = true
+    }
+    
     func mergeButtonTapped() {
         
-        var selectedCount = 0
+        var selectedVideos = Video[]()
         for video in videos {
             if video.selected {
-                ++selectedCount
+                selectedVideos.append(video)
             }
         }
         
-        if selectedCount > 1 {
+        if selectedVideos.count > 1 {
             //Merge videos
+            mergeVideos(selectedVideos)
+            
         } else {
             var alertView = UIAlertController(title: NSLocalizedString("Not Enough Videos!", comment:"Alert Title"), message: NSLocalizedString("You must select at least 2 videos to merge", comment:"Alert Message"), preferredStyle: .Alert)
             var defaultAction = UIAlertAction(title: NSLocalizedString("OK", comment:"OK"), style: .Default, handler: nil)
@@ -65,25 +78,11 @@ class ViewController: UIViewController, UICollectionViewDataSource, UICollection
             self.presentViewController(alertView, animated: true, completion: nil)
         }
     }
-    
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
-        // Dispose of any resources that can be recreated.
-    }
-    
-    @IBAction func buildVideo() {
-        
-    }
-    
-    func setupCollectionView() {
-        var layout = collectionView.collectionViewLayout as UICollectionViewFlowLayout
-        layout.itemSize = CGSize(width: 100, height: 100)
-        collectionView.registerClass(VideoCollectionViewCell.self, forCellWithReuseIdentifier: cellIdentifier)
-        collectionView.layer.borderWidth = 5.0
-        
-    }
-    
+ 
     func loadVideos() {
+        //Clear out all existing videos (if any)
+        videos = Video[]()
+        
         assetsLibrary.enumerateGroupsWithTypes(ALAssetsGroupType(ALAssetsGroupSavedPhotos),
             usingBlock:{ group, stop in
                 
@@ -95,17 +94,14 @@ class ViewController: UIViewController, UICollectionViewDataSource, UICollection
 
                         if result {
                              if (result?.valueForProperty(ALAssetPropertyType) as String == ALAssetTypeVideo) {
-//                                var assetToAdd = ALAsset(
                                 self.videos.append(Video(url:result.defaultRepresentation().url()))
                             }
                         }
-
-                        
-                        })
+                    })
                 }
-            }, failureBlock: { error in
-                //Failed
-                })
+                    }, failureBlock: { error in
+                        //Failed
+                    })
     }
     
     func collectionView(_ : UICollectionView!, numberOfItemsInSection section: Int) -> Int {
@@ -140,11 +136,66 @@ class ViewController: UIViewController, UICollectionViewDataSource, UICollection
                 selectedVideo.selected = false
         } else {
             selectedVideo.selected = true
-
         }
         
-        collectionView.reloadData()
-
+        collectionView.reloadItemsAtIndexPaths([indexPath])
+    }
+    
+    func mergeVideos(sourceVideos: Video[]) {
+        
+        var composition = AVMutableComposition()
+        var track = composition.addMutableTrackWithMediaType(AVMediaTypeVideo, preferredTrackID:Int32(kCMPersistentTrackID_Invalid))
+        
+        for (index, currentVideoObject) in enumerate(sourceVideos) {
+            
+            var videoAsset = AVAsset.assetWithURL(currentVideoObject.assetURL) as AVAsset
+            if index == 0 {
+                track.insertTimeRange(CMTimeRangeMake(kCMTimeZero, videoAsset.duration), ofTrack: videoAsset.tracksWithMediaType(AVMediaTypeVideo)[0] as AVAssetTrack, atTime: kCMTimeZero, error: nil)
+            } else {
+                track.insertTimeRange(CMTimeRangeMake(kCMTimeZero, videoAsset.duration), ofTrack: videoAsset.tracksWithMediaType(AVMediaTypeVideo)[0] as AVAssetTrack, atTime: composition.duration, error: nil)
+            }
+            
+        }
+        
+        var paths = NSSearchPathForDirectoriesInDomains(.DocumentDirectory, .UserDomainMask, true)
+        var documentsDirectory = paths[0] as String
+        var videoPathToSave = documentsDirectory.stringByAppendingPathComponent("mergeVideo-\(arc4random()%1000)-d.mov")
+        var videoURLToSave = NSURL(fileURLWithPath: videoPathToSave)
+        
+        var exporter = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality)
+        exporter.outputURL = videoURLToSave
+        exporter.outputFileType = AVFileTypeQuickTimeMovie
+        exporter.shouldOptimizeForNetworkUse = true
+        
+        //Let's use GCD async groups to wait for the videos to be merged
+        var group = dispatch_group_create()
+        dispatch_group_enter(group)
+        
+        exporter.exportAsynchronouslyWithCompletionHandler({
+            dispatch_group_leave(group)
+        })
+        
+        dispatch_group_notify(group, dispatch_get_main_queue(), {
+            self.assetsLibrary.writeVideoAtPathToSavedPhotosAlbum(videoURLToSave, completionBlock: {
+                savedVideoURL, error in
+                if error == nil {
+                    self.loadVideos()
+                    self.showAlert(NSLocalizedString("Done!",comment:"Done!"), message: NSLocalizedString("Videos have been merged", comment:"Video merge success message"))
+                } else {
+                    var alertView = UIAlertController(title: NSLocalizedString("Error", comment:"Error"), message: NSLocalizedString("There was an error: \(error)", comment:"Error message"), preferredStyle: .Alert)
+                    var defaultAction = UIAlertAction(title: NSLocalizedString("OK",comment:"OK"), style: .Default, handler: nil)
+                    alertView.addAction(defaultAction)
+                    self.presentViewController(alertView, animated: true, completion: nil)
+                }
+                })
+            })
+    }
+    
+    func showAlert(title: String, message: String) {
+        var alertView = UIAlertController(title:title, message:message, preferredStyle: .Alert)
+        var defaultAction = UIAlertAction(title: NSLocalizedString("OK",comment:"OK"), style: .Default, handler: nil)
+        alertView.addAction(defaultAction)
+        self.presentViewController(alertView, animated: true, completion: nil)
     }
 
 }
