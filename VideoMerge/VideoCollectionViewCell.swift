@@ -15,6 +15,7 @@ class VideoCollectionViewCell : UICollectionViewCell {
     init(frame: CGRect) {
         super.init(frame: frame)
         imageView = UIImageView(frame:contentView.frame)
+        imageView!.contentMode = .ScaleAspectFit
         contentView.addSubview(imageView)
         var image = UIImage(named:"hello")
         if imageView {
