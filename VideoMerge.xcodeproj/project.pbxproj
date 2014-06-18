@@ -401,6 +401,7 @@
 				2987CC27195094CE009F4E7F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		2987CC28195094CE009F4E7F /* Build configuration list for PBXNativeTarget "VideoMergeTests" */ = {
 			isa = XCConfigurationList;
@@ -409,6 +410,7 @@
 				2987CC2A195094CE009F4E7F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
