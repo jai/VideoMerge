@@ -4,3 +4,11 @@ This is a test project I'm working on to learn Swift and some new iOS 8 APIs. Th
 
 *UPDATE - 19th July 2014*
 Merge videos complete! Now to add audio...
+
+####Goals####
+It's always good to have goals - so here's what I want to learn how to do in Swift / iOS 8:
+- ~~View Controller setup~~
+- ~~UICollectionView~~
+- ~~ALAssetsLibrary, AVFoundation, CoreMedia~~
+- New View Controller presentation API *(in progress)*
+- Custom Transitions
