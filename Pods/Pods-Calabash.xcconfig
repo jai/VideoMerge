@@ -1,0 +1,1 @@
+PODS_CALABASH_OTHER_LDFLAGS = -force_load "$(PODS_ROOT)/Calabash/calabash.framework/calabash" -lstdc++ -framework CFNetwork
